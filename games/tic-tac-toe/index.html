@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe - Funky Games</title>
+    <link rel="stylesheet" href="../../styles/main.css">
+    <style>
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 10px;
+            margin: 2rem auto;
+            width: 320px;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background: #fff;
+            border: 4px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-family: var(--pixel-font);
+            cursor: pointer;
+            box-shadow: 5px 5px 0px #000;
+        }
+        .cell:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 7px 7px 0px #000;
+        }
+        .cell.taken {
+            cursor: default;
+        }
+        #status {
+            font-size: 1.5rem;
+            margin-top: 1rem;
+            font-family: var(--pixel-font);
+        }
+        .reset-btn {
+            margin-top: 2rem;
+            padding: 10px 20px;
+            font-family: var(--pixel-font);
+            background: #000;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            box-shadow: 5px 5px 0px #2ed573;
+        }
+        .reset-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 7px 7px 0px #2ed573;
+        }
+    </style>
+</head>
+<body>
+    <a href="../../index.html" class="back-home">BACK</a>
+    <div class="container">
+        <h1>Tic-Tac-Toe</h1>
+        <div id="status">Your Turn (X)</div>
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+        <button class="reset-btn" onclick="resetGame()">RESET</button>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const cells = document.querySelectorAll('.cell');
+        const statusDisplay = document.getElementById('status');
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let gameActive = true;
+        const HUMAN = 'X';
+        const AI = 'O';
+
+        const winConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        function handleCellClick(e) {
+            const index = e.target.getAttribute('data-index');
+            if (board[index] !== '' || !gameActive) return;
+
+            makeMove(index, HUMAN);
+            if (gameActive) {
+                statusDisplay.innerText = "CPU is thinking...";
+                setTimeout(aiMove, 500);
+            }
+        }
+
+        function makeMove(index, player) {
+            board[index] = player;
+            cells[index].innerText = player;
+            cells[index].classList.add('taken');
+            checkResult();
+        }
+
+        function aiMove() {
+            const bestMove = minimax(board, AI).index;
+            makeMove(bestMove, AI);
+            if (gameActive) statusDisplay.innerText = "Your Turn (X)";
+        }
+
+        function checkResult() {
+            let roundWon = false;
+            for (let condition of winConditions) {
+                const [a, b, c] = condition;
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    roundWon = true;
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                const winner = board.includes('') ? (board.filter(x => x === HUMAN).length > board.filter(x => x === AI).length ? HUMAN : AI) : 'Draw';
+                // Wait, the logic above is slightly flawed if we just want to know who won the round.
+                // Re-calculating winner correctly:
+            }
+            
+            // Simpler check result
+            let winner = null;
+            for (let condition of winConditions) {
+                const [a, b, c] = condition;
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    winner = board[a];
+                }
+            }
+
+            if (winner) {
+                statusDisplay.innerText = winner === HUMAN ? "YOU WIN!" : "CPU WINS!";
+                gameActive = false;
+                return;
+            }
+
+            if (!board.includes('')) {
+                statusDisplay.innerText = "DRAW!";
+                gameActive = false;
+                return;
+            }
+        }
+
+        function minimax(newBoard, player) {
+            const availSpots = newBoard.map((val, idx) => val === '' ? idx : null).filter(val => val !== null);
+
+            if (checkWin(newBoard, HUMAN)) return { score: -10 };
+            if (checkWin(newBoard, AI)) return { score: 10 };
+            if (availSpots.length === 0) return { score: 0 };
+
+            const moves = [];
+            for (let i = 0; i < availSpots.length; i++) {
+                const move = {};
+                move.index = availSpots[i];
+                newBoard[availSpots[i]] = player;
+
+                if (player === AI) {
+                    const result = minimax(newBoard, HUMAN);
+                    move.score = result.score;
+                } else {
+                    const result = minimax(newBoard, AI);
+                    move.score = result.score;
+                }
+
+                newBoard[availSpots[i]] = '';
+                moves.push(move);
+            }
+
+            let bestMove;
+            if (player === AI) {
+                let bestScore = -10000;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score > bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+            } else {
+                let bestScore = 10000;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score < bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+            }
+            return moves[bestMove];
+        }
+
+        function checkWin(board, player) {
+            return winConditions.some(condition => {
+                return condition.every(index => board[index] === player);
+            });
+        }
+
+        function resetGame() {
+            board = ['', '', '', '', '', '', '', '', ''];
+            gameActive = true;
+            statusDisplay.innerText = "Your Turn (X)";
+            cells.forEach(cell => {
+                cell.innerText = '';
+                cell.classList.remove('taken');
+            });
+        }
+
+        cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+    </script>
+</body>
+</html>

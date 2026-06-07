@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uno Lite - Funky Games</title>
+    <link rel="stylesheet" href="../../styles/main.css">
+    <style>
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin-top: 1rem;
+        }
+        .hand {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            min-height: 120px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .card {
+            width: 70px;
+            height: 100px;
+            border: 3px solid #000;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-family: var(--pixel-font);
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 4px 4px 0px #000;
+            background: #fff;
+            transition: transform 0.1s, box-shadow 0.1s;
+            user-select: none;
+            position: relative;
+        }
+        .card:hover { transform: translateY(-10px); box-shadow: 6px 6px 0px #000; }
+        .card.red { background-color: #ff4757; color: white; }
+        .card.blue { background-color: #1e90ff; color: white; }
+        .card.green { background-color: #2ed573; color: white; }
+        .card.yellow { background-color: #ffa502; color: white; }
+        .card.wild { background-color: #2f3542; color: white; }
+        
+        .card-type { font-size: 0.7rem; margin-top: 5px; }
+
+        .center-pile {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            margin: 20px 0;
+        }
+        .pile-label { font-family: var(--pixel-font); font-size: 0.8rem; margin-bottom: 5px; }
+
+        .deck-pile {
+            width: 80px;
+            height: 110px;
+            background: #000;
+            border: 4px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: var(--pixel-font);
+            font-size: 0.6rem;
+            box-shadow: 4px 4px 0px #888;
+        }
+        .deck-pile:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px #888; }
+
+        .discard-pile {
+            width: 80px;
+            height: 110px;
+            border: 4px dashed #ccc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #status-msg {
+            font-family: var(--pixel-font);
+            font-size: 1rem;
+            height: 1.5rem;
+            color: var(--accent-color);
+            margin: 10px 0;
+        }
+
+        .wild-colors {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 5px solid #000;
+            padding: 20px;
+            z-index: 100;
+            box-shadow: 15px 15px 0px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .color-btn {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #000;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <a href="../../index.html" class="back-home">BACK</a>
+    <div class="container">
+        <h1>Uno Lite</h1>
+        
+        <div class="game-area">
+            <div class="pile-label">CPU (Cards: <span id="cpu-count">0</span>)</div>
+            <div id="cpu-hand" class="hand"></div>
+
+            <div class="center-pile">
+                <div>
+                    <div class="pile-label">DECK</div>
+                    <div class="deck-pile" onclick="playerDraw()">DRAW</div>
+                </div>
+                <div>
+                    <div class="pile-label">DISCARD</div>
+                    <div id="discard-pile" class="discard-pile"></div>
+                </div>
+            </div>
+
+            <div id="status-msg">Your Turn!</div>
+            
+            <div id="player-hand" class="hand"></div>
+            <div class="pile-label">YOUR HAND</div>
+        </div>
+    </div>
+
+    <div id="wild-modal" class="wild-colors">
+        <h3 style="font-family: var(--pixel-font); font-size: 0.8rem; margin-bottom: 15px;">Choose Color</h3>
+        <button class="color-btn" style="background: #ff4757;" onclick="selectWildColor('red')"></button>
+        <button class="color-btn" style="background: #1e90ff;" onclick="selectWildColor('blue')"></button>
+        <button class="color-btn" style="background: #2ed573;" onclick="selectWildColor('green')"></button>
+        <button class="color-btn" style="background: #ffa502;" onclick="selectWildColor('yellow')"></button>
+    </div>
+
+    <script>
+        const COLORS = ['red', 'blue', 'green', 'yellow'];
+        const VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'S', 'R', '+2'];
+        const WILD_TYPES = ['WILD', '+4'];
+
+        let deck = [];
+        let discard = [];
+        let playerHand = [];
+        let cpuHand = [];
+        let turn = 'player'; // 'player' or 'cpu'
+        let gameActive = true;
+        let pendingWild = null;
+
+        function createDeck() {
+            deck = [];
+            COLORS.forEach(color => {
+                VALUES.forEach(val => {
+                    deck.push({ color, value: val });
+                    if (val !== '0') deck.push({ color, value: val }); // Two of each except '0'
+                });
+            });
+            for (let i = 0; i < 4; i++) {
+                deck.push({ color: 'wild', value: 'WILD' });
+                deck.push({ color: 'wild', value: '+4' });
+            }
+            shuffle(deck);
+        }
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+
+        function drawCard() {
+            if (deck.length === 0) {
+                if (discard.length <= 1) return null;
+                const top = discard.pop();
+                deck = discard;
+                discard = [top];
+                deck.forEach(c => { if (c.value === 'WILD' || c.value === '+4') c.color = 'wild'; });
+                shuffle(deck);
+            }
+            return deck.pop();
+        }
+
+        function initGame() {
+            createDeck();
+            playerHand = [];
+            cpuHand = [];
+            for (let i = 0; i < 7; i++) {
+                playerHand.push(drawCard());
+                cpuHand.push(drawCard());
+            }
+            
+            let firstCard = drawCard();
+            while (firstCard.color === 'wild') {
+                deck.unshift(firstCard);
+                firstCard = drawCard();
+            }
+            discard = [firstCard];
+            render();
+        }
+
+        function render() {
+            const pHandEl = document.getElementById('player-hand');
+            const cHandEl = document.getElementById('cpu-hand');
+            const discardEl = document.getElementById('discard-pile');
+            const statusEl = document.getElementById('status-msg');
+            const cpuCountEl = document.getElementById('cpu-count');
+
+            pHandEl.innerHTML = '';
+            playerHand.forEach((card, i) => {
+                const el = createCardUI(card);
+                el.onclick = () => tryPlay(i);
+                pHandEl.appendChild(el);
+            });
+
+            cHandEl.innerHTML = '';
+            cpuHand.forEach(() => {
+                const el = document.createElement('div');
+                el.className = 'card';
+                el.style.background = '#000';
+                cHandEl.appendChild(el);
+            });
+
+            discardEl.innerHTML = '';
+            discardEl.appendChild(createCardUI(discard[discard.length - 1]));
+
+            cpuCountEl.innerText = cpuHand.length;
+            statusEl.innerText = turn === 'player' ? "Your Turn!" : "CPU is playing...";
+            statusEl.style.color = turn === 'player' ? "#2ed573" : "#ff4757";
+        }
+
+        function createCardUI(card) {
+            const el = document.createElement('div');
+            el.className = `card ${card.color}`;
+            el.innerHTML = `<span>${card.value}</span>`;
+            if (['S', 'R', '+2', '+4', 'WILD'].includes(card.value)) {
+                const sub = document.createElement('div');
+                sub.className = 'card-type';
+                sub.innerText = card.value === 'S' ? 'SKIP' : card.value === 'R' ? 'REV' : card.value;
+                el.appendChild(sub);
+            }
+            return el;
+        }
+
+        function tryPlay(index) {
+            if (turn !== 'player' || !gameActive) return;
+            const card = playerHand[index];
+            const top = discard[discard.length - 1];
+
+            if (card.color === 'wild' || card.color === top.color || card.value === top.value) {
+                playCard(index, 'player');
+            }
+        }
+
+        function playCard(index, player) {
+            const hand = player === 'player' ? playerHand : cpuHand;
+            const card = hand.splice(index, 1)[0];
+            discard.push(card);
+
+            if (hand.length === 0) {
+                render();
+                gameActive = false;
+                setTimeout(() => { alert(player === 'player' ? "YOU WIN!" : "CPU WINS!"); location.reload(); }, 200);
+                return;
+            }
+
+            if (card.color === 'wild') {
+                if (player === 'player') {
+                    pendingWild = card;
+                    document.getElementById('wild-modal').style.display = 'block';
+                    return;
+                } else {
+                    // CPU picks most frequent color
+                    const counts = {};
+                    cpuHand.forEach(c => { if(c.color !== 'wild') counts[c.color] = (counts[c.color] || 0) + 1; });
+                    card.color = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, 'red');
+                }
+            }
+
+            handleAction(card);
+        }
+
+        function selectWildColor(color) {
+            pendingWild.color = color;
+            document.getElementById('wild-modal').style.display = 'none';
+            handleAction(pendingWild);
+            pendingWild = null;
+        }
+
+        function handleAction(card) {
+            let skipNext = false;
+            if (card.value === 'S' || card.value === 'R' || card.value === '+2' || card.value === '+4') {
+                skipNext = true;
+                const targetHand = turn === 'player' ? cpuHand : playerHand;
+                if (card.value === '+2') {
+                    for(let i=0; i<2; i++) { const c = drawCard(); if(c) targetHand.push(c); }
+                } else if (card.value === '+4') {
+                    for(let i=0; i<4; i++) { const c = drawCard(); if(c) targetHand.push(c); }
+                }
+            }
+
+            if (!skipNext) {
+                turn = turn === 'player' ? 'cpu' : 'player';
+            }
+
+            render();
+            if (turn === 'cpu') setTimeout(cpuTurn, 1000);
+        }
+
+        function playerDraw() {
+            if (turn !== 'player' || !gameActive) return;
+            const c = drawCard();
+            if (c) playerHand.push(c);
+            turn = 'cpu';
+            render();
+            setTimeout(cpuTurn, 1000);
+        }
+
+        function cpuTurn() {
+            if (!gameActive) return;
+            const top = discard[discard.length - 1];
+            const index = cpuHand.findIndex(c => c.color === 'wild' || c.color === top.color || c.value === top.value);
+
+            if (index !== -1) {
+                playCard(index, 'cpu');
+            } else {
+                const c = drawCard();
+                if (c) cpuHand.push(c);
+                turn = 'player';
+                render();
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
